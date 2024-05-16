@@ -1,0 +1,31 @@
+h1 {
+    text-align: center;
+}
+
+body {
+    max-width: 600px;
+    margin: auto;
+    background-color: #323437;
+    color: #d1d0c5;
+    font-family: sans-serif;
+}
+
+nav ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    display: block;
+    overflow: hidden;
+}
+
+nav li {
+    float: left;
+    padding: 16px;
+}
+
+nav a {
+    display: block;
+    padding: 8px;
+    text-decoration: none;
+    color: inherit;
+}
