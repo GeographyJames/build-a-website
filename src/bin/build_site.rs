@@ -1,5 +1,7 @@
+use core::fmt;
 use std::io::Write;
-use std::{fs, path::PathBuf};
+use std::num::ParseIntError;
+use std::{error::Error, fs, path::PathBuf};
 
 use chrono::NaiveDate;
 use comrak::{markdown_to_html, Options};
@@ -7,6 +9,10 @@ use comrak::{markdown_to_html, Options};
 fn main() -> Result<(), std::io::Error> {
     create_directories();
     parse_markdown_posts();
+    let test_post = Post {
+        title: "a test post".to_string(),
+        date: NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
+    };
     Ok(())
 }
 
@@ -30,6 +36,16 @@ impl Post {
         }
     }
 }
+
+impl fmt::Display for PostError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "something went wrong")
+    }
+}
+#[derive(Debug)]
+struct PostError;
+
+impl Error for PostError {}
 
 fn parse_markdown_posts() {
     for result in fs::read_dir("posts").expect("Could not access posts directory") {
@@ -76,7 +92,7 @@ mod tests {
         );
     }
     #[test]
-    fn should_parse_markdown_file_and_return_post_struct() {
+    fn should_parse_markdown_file_name_and_return_post_struct() {
         let output = Post {
             title: "my-post".to_string(),
             date: NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
@@ -84,6 +100,6 @@ mod tests {
         assert_eq!(
             Post::from_file_path(PathBuf::from_str("2000-01-01-my-post").unwrap()),
             output
-        )
+        );
     }
 }
