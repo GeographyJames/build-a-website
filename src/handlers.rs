@@ -1,15 +1,30 @@
-use actix_web::{get, HttpResponse};
+use crate::post::Post;
+use crate::AppState;
+use actix_web::{get, web, HttpResponse};
 use lazy_static::lazy_static;
 use log::info;
+use serde::Serialize;
 use tera::{Context, Tera};
 
 lazy_static! {
     pub static ref TEMPLATE: Tera = Tera::new("templates/**/*.html").unwrap();
 }
+#[derive(Serialize)]
+struct PostTitles {
+    titles: Vec<String>,
+}
 
 #[get("/")]
-async fn index() -> HttpResponse {
-    match TEMPLATE.render("index.html", &Context::new()) {
+async fn index(data: web::Data<AppState>) -> HttpResponse {
+    let posts = &data.posts;
+    let mut titles = PostTitles { titles: Vec::new() };
+    for post in posts {
+        titles.titles.push(post.title.clone())
+    }
+    let mut context = Context::new();
+
+    context.insert("titles", &titles);
+    match TEMPLATE.render("index.html", &context) {
         Ok(rendered) => HttpResponse::Ok().body(rendered),
         Err(err) => {
             info!("{}", err);

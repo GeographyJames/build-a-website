@@ -12,3 +12,4 @@ tera = "1"
 lazy_static = "1.4"
 comrak = "0.23"
 chrono = "0.4"
+serde = { version = "1", features = ["derive"] }

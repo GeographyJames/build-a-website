@@ -3,4 +3,7 @@
 {% block content %}
 <h1>Welcome to my blog</h1>
 <p>I hope you find by blog interesting :)</p>
+{% for post in titles.titles %}
+<p>{{ post }}</p>
+{% endfor %}
 {% endblock content %}

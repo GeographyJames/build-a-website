@@ -1,28 +1,19 @@
-use core::fmt;
-use std::io::Write;
-use std::num::ParseIntError;
-use std::{error::Error, fs, path::PathBuf};
-
 use chrono::NaiveDate;
-use comrak::{markdown_to_html, Options};
-
-fn main() -> Result<(), std::io::Error> {
-    create_directories();
-    let posts = parse_markdown_posts();
-    println!("{:?}", posts);
-    Ok(())
-}
+use core::fmt;
+use serde::Serialize;
+use std::error::Error;
+use std::path::PathBuf;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Post {
-    source_file_path: PathBuf,
-    file_name: String,
-    title: String,
-    date: NaiveDate,
+    pub source_file_path: PathBuf,
+    pub file_name: String,
+    pub title: String,
+    pub date: NaiveDate,
 }
 
 impl Post {
-    fn from_file_path(file_path: &PathBuf) -> Result<Post, PostError> {
+    pub fn from_file_path(file_path: &PathBuf) -> Result<Post, PostError> {
         let file_name;
 
         if let Some(f) = file_path.file_name() {
@@ -110,8 +101,8 @@ impl Post {
 }
 
 #[derive(Debug, Clone)]
-struct PostError {
-    message: String,
+pub struct PostError {
+    pub message: String,
 }
 
 impl fmt::Display for PostError {
@@ -128,85 +119,10 @@ impl PostError {
 }
 
 impl Error for PostError {}
-
-fn build(
-    source_directory: PathBuf,
-    target_directory: PathBuf,
-) -> Result<Vec<Result<Post, PostError>>, std::io::Error> {
-    let mut posts: Vec<Result<Post, PostError>> = Vec::new();
-    let directory_entry = fs::read_dir(source_directory)?;
-    for directory in directory_entry {
-        let post_result = Post::from_file_path(&(directory?.path()));
-        posts.push(post_result.clone());
-        if let Ok(post) = post_result {
-            let input = fs::read_to_string(&post.source_file_path)?;
-            let output = markdown_to_html(&input, &Options::default());
-            let mut target_filename = target_directory.clone();
-            target_filename.push(&post.file_name);
-            target_filename.push(".html");
-            let mut html_file = fs::File::create_new(target_filename)?;
-            let _ = write!(html_file, "{}", output);
-        }
-    }
-    Ok(posts)
-}
-
-fn parse_markdown_posts() -> Vec<Post> {
-    let mut posts: Vec<Post> = Vec::new();
-    for result in fs::read_dir("posts").expect("Could not access posts directory") {
-        let directory_entry = result.unwrap();
-        if directory_entry
-            .file_type()
-            .expect("could not determine file type")
-            .is_file()
-        {
-            let file_path = directory_entry.path();
-            let res = Post::from_file_path(&file_path);
-            match res {
-                Ok(post) => {
-                    posts.push(post);
-                    if file_path.extension().is_some_and(|ext| ext == "mk") {
-                        let file_name = file_path
-                            .file_stem()
-                            .expect("file has no name")
-                            .to_str()
-                            .unwrap();
-                        let input =
-                            fs::read_to_string(&file_path).expect("could not read file to string");
-                        let output = markdown_to_html(&input, &Options::default());
-                        let mut f = fs::File::create_new(format!("_site/posts/{}.html", file_name))
-                            .unwrap();
-                        let _ = write!(f, "{}", output);
-                    }
-                }
-                Err(err) => {
-                    println!("{}", err)
-                }
-            }
-        }
-    }
-    posts
-}
-
-fn create_directories() {
-    let _ = fs::remove_dir_all("_site");
-    fs::create_dir_all("_site/posts").expect("Failed to create site directories.");
-}
-
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
-    #[test]
-    fn should_return_markdown() {
-        let input = "Hello World";
-        let output = "<p>Hello World</p>\n";
-        assert_eq!(
-            comrak::markdown_to_html(input, &comrak::Options::default()),
-            output
-        );
-    }
+    use std::str::FromStr;
     #[test]
     fn should_parse_markdown_file_name_and_return_post_struct() {
         let output = Post {
