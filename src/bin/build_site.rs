@@ -8,22 +8,21 @@ use comrak::{markdown_to_html, Options};
 
 fn main() -> Result<(), std::io::Error> {
     create_directories();
-    parse_markdown_posts();
-    let test_post = Post {
-        title: "a test post".to_string(),
-        date: NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
-    };
+    let posts = parse_markdown_posts();
+    println!("{:?}", posts);
     Ok(())
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Post {
+    source_file_path: PathBuf,
+    file_name: String,
     title: String,
     date: NaiveDate,
 }
 
 impl Post {
-    fn from_file_path(file_path: PathBuf) -> Result<Post, PostError> {
+    fn from_file_path(file_path: &PathBuf) -> Result<Post, PostError> {
         let file_name;
 
         if let Some(f) = file_path.file_name() {
@@ -100,11 +99,17 @@ impl Post {
         if title.is_empty() {
             return Err(PostError::new("post has no title"));
         }
-        Ok(Post { title, date })
+
+        Ok(Post {
+            source_file_path: file_path.clone(),
+            file_name: post_date_and_name.to_string(),
+            title,
+            date,
+        })
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PostError {
     message: String,
 }
@@ -124,7 +129,30 @@ impl PostError {
 
 impl Error for PostError {}
 
-fn parse_markdown_posts() {
+fn build(
+    source_directory: PathBuf,
+    target_directory: PathBuf,
+) -> Result<Vec<Result<Post, PostError>>, std::io::Error> {
+    let mut posts: Vec<Result<Post, PostError>> = Vec::new();
+    let directory_entry = fs::read_dir(source_directory)?;
+    for directory in directory_entry {
+        let post_result = Post::from_file_path(&(directory?.path()));
+        posts.push(post_result.clone());
+        if let Ok(post) = post_result {
+            let input = fs::read_to_string(&post.source_file_path)?;
+            let output = markdown_to_html(&input, &Options::default());
+            let mut target_filename = target_directory.clone();
+            target_filename.push(&post.file_name);
+            target_filename.push(".html");
+            let mut html_file = fs::File::create_new(target_filename)?;
+            let _ = write!(html_file, "{}", output);
+        }
+    }
+    Ok(posts)
+}
+
+fn parse_markdown_posts() -> Vec<Post> {
+    let mut posts: Vec<Post> = Vec::new();
     for result in fs::read_dir("posts").expect("Could not access posts directory") {
         let directory_entry = result.unwrap();
         if directory_entry
@@ -133,20 +161,31 @@ fn parse_markdown_posts() {
             .is_file()
         {
             let file_path = directory_entry.path();
-            if file_path.extension().is_some_and(|ext| ext == "mk") {
-                let file_name = file_path
-                    .file_stem()
-                    .expect("file has no name")
-                    .to_str()
-                    .unwrap();
-                let input = fs::read_to_string(&file_path).expect("could not read file to string");
-                let output = markdown_to_html(&input, &Options::default());
-                let mut f =
-                    fs::File::create_new(format!("_site/posts/{}.html", file_name)).unwrap();
-                let _ = write!(f, "{}", output);
+            let res = Post::from_file_path(&file_path);
+            match res {
+                Ok(post) => {
+                    posts.push(post);
+                    if file_path.extension().is_some_and(|ext| ext == "mk") {
+                        let file_name = file_path
+                            .file_stem()
+                            .expect("file has no name")
+                            .to_str()
+                            .unwrap();
+                        let input =
+                            fs::read_to_string(&file_path).expect("could not read file to string");
+                        let output = markdown_to_html(&input, &Options::default());
+                        let mut f = fs::File::create_new(format!("_site/posts/{}.html", file_name))
+                            .unwrap();
+                        let _ = write!(f, "{}", output);
+                    }
+                }
+                Err(err) => {
+                    println!("{}", err)
+                }
             }
         }
     }
+    posts
 }
 
 fn create_directories() {
@@ -171,11 +210,13 @@ mod tests {
     #[test]
     fn should_parse_markdown_file_name_and_return_post_struct() {
         let output = Post {
+            source_file_path: PathBuf::from_str("my_directory/2000-01-01-my-post.mk").unwrap(),
+            file_name: "2000-01-01-my-post".to_string(),
             title: "my-post".to_string(),
             date: NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
         };
         assert_eq!(
-            Post::from_file_path(PathBuf::from_str("my_directory/2000-01-01-my-post.mk").unwrap())
+            Post::from_file_path(&PathBuf::from_str("my_directory/2000-01-01-my-post.mk").unwrap())
                 .unwrap(),
             output
         );
@@ -183,13 +224,13 @@ mod tests {
 
     #[test]
     fn should_fail_because_file_has_no_name() {
-        let result = Post::from_file_path(PathBuf::from_str("").unwrap());
+        let result = Post::from_file_path(&PathBuf::from_str("").unwrap());
         assert!(result.is_err());
     }
 
     #[test]
     fn should_fail_because_file_has_no_name_and_provide_message() {
-        let result = Post::from_file_path(PathBuf::from_str("").unwrap());
+        let result = Post::from_file_path(&PathBuf::from_str("").unwrap());
         if let Err(err) = result {
             assert!(err.message == "file has no name")
         } else {
@@ -200,7 +241,7 @@ mod tests {
     #[test]
     fn should_fail_because_file_has_no_extension() {
         let result =
-            Post::from_file_path(PathBuf::from_str("my_directory/2000-01-01-my-post").unwrap());
+            Post::from_file_path(&PathBuf::from_str("my_directory/2000-01-01-my-post").unwrap());
         if let Err(err) = result {
             assert!(err.message == "no file extension")
         } else {
@@ -211,7 +252,7 @@ mod tests {
     #[test]
     fn should_fail_because_file_extension_is_not_mk() {
         let result = Post::from_file_path(
-            (PathBuf::from_str("my_directory/2000-01-01-my-post.ext")).unwrap(),
+            &(PathBuf::from_str("my_directory/2000-01-01-my-post.ext")).unwrap(),
         );
         if let Err(err) = result {
             assert!(err.message == "invalid file extension")
@@ -223,7 +264,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_year() {
         let result =
-            Post::from_file_path((PathBuf::from_str("my_directory/-01-01-my-post.mk")).unwrap());
+            Post::from_file_path(&(PathBuf::from_str("my_directory/-01-01-my-post.mk")).unwrap());
         if let Err(err) = result {
             assert!(err.message == "could not parse year")
         } else {
@@ -233,7 +274,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_month() {
         let result = Post::from_file_path(
-            (PathBuf::from_str("my_directory/2000-month-01-my-post.mk")).unwrap(),
+            &(PathBuf::from_str("my_directory/2000-month-01-my-post.mk")).unwrap(),
         );
         if let Err(err) = result {
             println!("{}", err.message);
@@ -246,7 +287,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_day() {
         let result = Post::from_file_path(
-            (PathBuf::from_str("my_directory/2000-01-day-my-post.mk")).unwrap(),
+            &(PathBuf::from_str("my_directory/2000-01-day-my-post.mk")).unwrap(),
         );
         if let Err(err) = result {
             println!("{}", err.message);
@@ -258,7 +299,7 @@ mod tests {
     #[test]
     fn should_fail_because_date_invalid() {
         let result = Post::from_file_path(
-            (PathBuf::from_str("my_directory/2000-111-01-my-post.mk")).unwrap(),
+            &(PathBuf::from_str("my_directory/2000-111-01-my-post.mk")).unwrap(),
         );
         if let Err(err) = result {
             println!("{}", err.message);
@@ -270,7 +311,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_title() {
         let result =
-            Post::from_file_path((PathBuf::from_str("my_directory/2000-01-01.mk")).unwrap());
+            Post::from_file_path(&(PathBuf::from_str("my_directory/2000-01-01.mk")).unwrap());
         if let Err(err) = result {
             println!("{}", err.message);
             assert!(err.message == "post has no title")
