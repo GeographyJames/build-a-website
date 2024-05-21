@@ -7,7 +7,9 @@ use actix_web::{web, App, HttpServer};
 use build::build;
 use handlers::{blog_post, index};
 use post::{Post, PostError};
+use serde::Serialize;
 
+#[derive(Serialize)]
 struct AppState {
     posts: Vec<Post>,
 }

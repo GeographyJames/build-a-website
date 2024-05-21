@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::error::Error;
 use std::path::PathBuf;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize)]
 pub struct Post {
     pub source_file_path: PathBuf,
     pub file_name: String,
