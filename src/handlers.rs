@@ -45,6 +45,14 @@ async fn blog_post(file_name: web::Path<String>) -> HttpResponse {
     }
 }
 
+#[get("/")]
+async fn hello_world(state: web::Data<AppState>) -> &'static str {
+    let mut context = Context::new();
+    context.insert("app_data", &state);
+    println!("{:?}", state.posts);
+    "Hello wrold"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

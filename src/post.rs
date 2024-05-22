@@ -44,7 +44,7 @@ impl Post {
             return Err(PostError::new("no file extension"));
         }
 
-        if file_extension != "mk" {
+        if file_extension != "md" {
             return Err(PostError::new("invalid file extension"));
         }
 

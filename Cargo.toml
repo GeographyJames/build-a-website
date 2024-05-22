@@ -13,3 +13,7 @@ lazy_static = "1.4"
 comrak = "0.23"
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
+shuttle-actix-web = "0.45.0"
+shuttle-runtime = "0.45.0"
+tokio = "1.26.0"
+
