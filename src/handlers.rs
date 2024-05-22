@@ -23,9 +23,26 @@ async fn index(data: web::Data<AppState>) -> HttpResponse {
     }
 }
 
-#[get("/posts/{file_name}")]
+#[get("/{file_name}")]
 async fn blog_post(file_name: web::Path<String>) -> HttpResponse {
-    HttpResponse::Ok().body(format!("You clicked on {}", &file_name))
+    let mut context = Context::new();
+    context.insert("title", &file_name.to_string());
+    match fs::read_to_string(format!("_site/posts/{}.html", file_name)) {
+        Ok(str) => {
+            context.insert("blog_post", &str);
+            match TEMPLATE.render("post.html", &context) {
+                Ok(rendered) => HttpResponse::Ok().body(rendered),
+                Err(err) => {
+                    info!("{}", err);
+                    HttpResponse::InternalServerError().body("something went wrong sad face")
+                }
+            }
+        }
+        Err(err) => {
+            info!("{}", err);
+            HttpResponse::InternalServerError().body("something went wrong sad face")
+        }
+    }
 }
 
 #[cfg(test)]

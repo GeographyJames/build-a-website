@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-{% block title %}A title{% endblock title %}
+{% block title %}My awesome blog{% endblock title %}
 {% block content %}
-<h1>hello</h1>
-<p>here is some content</p>
+{{ blog_post | safe }}
 {% endblock content %}

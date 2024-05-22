@@ -42,9 +42,9 @@ async fn main() -> std::io::Result<()> {
                 posts: posts.clone(),
             }))
             .wrap(Logger::default())
-            .service(actix_files::Files::new("/static", "static"))
             .service(index)
             .service(blog_post)
+            .service(actix_files::Files::new("/static", "static"))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
