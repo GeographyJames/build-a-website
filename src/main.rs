@@ -5,6 +5,7 @@ mod post;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use actix_files::Files;
 use actix_web::middleware::Logger;
 use actix_web::web::ServiceConfig;
 use actix_web::{web, App, HttpServer};
@@ -82,7 +83,12 @@ async fn actix_web() -> ShuttleActixWeb<impl FnOnce(&mut ServiceConfig) + Send +
     let app_state = web::Data::new(generate_app_state());
 
     let config = move |cfg: &mut ServiceConfig| {
-        cfg.service(web::scope("").service(hello_world).app_data(app_state));
+        cfg.service(
+            web::scope("")
+                .service(hello_world)
+                .app_data(app_state)
+                .service(Files::new("/static", "./static").show_files_listing()),
+        );
     };
     Ok(config.into())
 }

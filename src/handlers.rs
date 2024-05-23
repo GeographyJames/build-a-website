@@ -1,7 +1,8 @@
 use std::fs;
 
 use crate::AppState;
-use actix_web::{get, web, HttpResponse};
+use actix_files::NamedFile;
+use actix_web::{get, web, HttpResponse, Responder};
 use lazy_static::lazy_static;
 use log::info;
 use tera::{Context, Tera};
@@ -46,11 +47,8 @@ async fn blog_post(file_name: web::Path<String>) -> HttpResponse {
 }
 
 #[get("/")]
-async fn hello_world(state: web::Data<AppState>) -> &'static str {
-    let mut context = Context::new();
-    context.insert("app_data", &state);
-    println!("{:?}", state.posts);
-    "Hello wrold"
+async fn hello_world(state: web::Data<AppState>) -> impl Responder {
+    NamedFile::open_async("static/html/test.html").await
 }
 
 #[cfg(test)]
