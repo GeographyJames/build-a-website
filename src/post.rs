@@ -1,15 +1,24 @@
 use chrono::NaiveDate;
 use core::fmt;
-use serde::Serialize;
+use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::path::PathBuf;
+use yaml_front_matter::YamlFrontMatter;
 
 #[derive(PartialEq, Debug, Clone, Serialize)]
 pub struct Post {
+    pub frontmatter: PostFrontmatter,
     pub source_file_path: PathBuf,
     pub file_name: String,
     pub title: String,
     pub date: NaiveDate,
+}
+
+#[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
+pub struct PostFrontmatter {
+    topic: String,
+    description: String,
 }
 
 impl Post {
@@ -90,8 +99,22 @@ impl Post {
         if title.is_empty() {
             return Err(PostError::new("post has no title"));
         }
+        let content;
+        if let Ok(str) = std::fs::read_to_string(file_path) {
+            content = str
+        } else {
+            return Err(PostError::new("could not read markdown file"));
+        }
+
+        let yaml_result;
+        if let Ok(res) = YamlFrontMatter::parse::<PostFrontmatter>(&content) {
+            yaml_result = res;
+        } else {
+            return Err(PostError::new("failed to create YAML frontmatter"));
+        }
 
         Ok(Post {
+            frontmatter: yaml_result.metadata,
             source_file_path: file_path.clone(),
             file_name: post_date_and_name.to_string(),
             title,
@@ -126,13 +149,13 @@ mod tests {
     #[test]
     fn should_parse_markdown_file_name_and_return_post_struct() {
         let output = Post {
-            source_file_path: PathBuf::from_str("my_directory/2000-01-01-my-post.mk").unwrap(),
+            source_file_path: PathBuf::from_str("my_directory/2000-01-01-my-post.md").unwrap(),
             file_name: "2000-01-01-my-post".to_string(),
             title: "my-post".to_string(),
             date: NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
         };
         assert_eq!(
-            Post::from_file_path(&PathBuf::from_str("my_directory/2000-01-01-my-post.mk").unwrap())
+            Post::from_file_path(&PathBuf::from_str("my_directory/2000-01-01-my-post.md").unwrap())
                 .unwrap(),
             output
         );
@@ -180,7 +203,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_year() {
         let result =
-            Post::from_file_path(&(PathBuf::from_str("my_directory/-01-01-my-post.mk")).unwrap());
+            Post::from_file_path(&(PathBuf::from_str("my_directory/-01-01-my-post.md")).unwrap());
         if let Err(err) = result {
             assert!(err.message == "could not parse year")
         } else {
@@ -190,7 +213,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_month() {
         let result = Post::from_file_path(
-            &(PathBuf::from_str("my_directory/2000-month-01-my-post.mk")).unwrap(),
+            &(PathBuf::from_str("my_directory/2000-month-01-my-post.md")).unwrap(),
         );
         if let Err(err) = result {
             println!("{}", err.message);
@@ -203,7 +226,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_day() {
         let result = Post::from_file_path(
-            &(PathBuf::from_str("my_directory/2000-01-day-my-post.mk")).unwrap(),
+            &(PathBuf::from_str("my_directory/2000-01-day-my-post.md")).unwrap(),
         );
         if let Err(err) = result {
             println!("{}", err.message);
@@ -215,7 +238,7 @@ mod tests {
     #[test]
     fn should_fail_because_date_invalid() {
         let result = Post::from_file_path(
-            &(PathBuf::from_str("my_directory/2000-111-01-my-post.mk")).unwrap(),
+            &(PathBuf::from_str("my_directory/2000-111-01-my-post.md")).unwrap(),
         );
         if let Err(err) = result {
             println!("{}", err.message);
@@ -227,7 +250,7 @@ mod tests {
     #[test]
     fn should_fail_because_name_has_no_title() {
         let result =
-            Post::from_file_path(&(PathBuf::from_str("my_directory/2000-01-01.mk")).unwrap());
+            Post::from_file_path(&(PathBuf::from_str("my_directory/2000-01-01.md")).unwrap());
         if let Err(err) = result {
             println!("{}", err.message);
             assert!(err.message == "post has no title")

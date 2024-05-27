@@ -16,4 +16,5 @@ serde = { version = "1", features = ["derive"] }
 shuttle-actix-web = "0.45.0"
 shuttle-runtime = "0.45.0"
 tokio = "1.26.0"
-
+yaml-front-matter = "0.1.0"
+regex = "1.10"
