@@ -3,7 +3,17 @@
 {% block content %}
 <h1>Welcome to my blog</h1>
 <p>I hope you find by blog interesting :)</p>
-{% for post in app_data.posts %}
-<p><a href="/{{ post.file_name }}">{{ post.frontmatter.topic }}: {{ post.title }}</a></p>
+<ul>{% for collection in app_data.collections %}
+    <li>{{ collection }}</li>
+    <ul>
+    {% for post in app_data.posts %}
+    {% if collection in post.collection %}
+<li><a href="/{{ post.url }}">{{ post.frontmatter.title }} ({{ post.date }})</a></li>
+{% endif %}
 {% endfor %}
+    </ul>
+    {% endfor %}
+</ul>
+
+
 {% endblock content %}

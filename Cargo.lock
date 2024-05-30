@@ -515,6 +515,7 @@ dependencies = [
  "actix-web",
  "chrono",
  "comrak",
+ "crossterm 0.27.0",
  "env_logger",
  "lazy_static",
  "log",

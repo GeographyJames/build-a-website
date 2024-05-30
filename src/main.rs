@@ -1,41 +1,54 @@
 mod handlers;
 mod post;
 
-use std::path::PathBuf;
 use std::str::FromStr;
+use std::{os::unix::fs::DirEntryExt, path::PathBuf};
 
 use actix_files::Files;
 use actix_web::middleware::Logger;
+use actix_web::web;
 use actix_web::web::ServiceConfig;
-use actix_web::{web, App, HttpServer};
-use handlers::{blog_post, hello_world, index};
+use handlers::{blog_post, index, latest_post};
 use post::{Post, PostError};
 use serde::Serialize;
 use shuttle_actix_web::ShuttleActixWeb;
-use std::fs;
-
+use std::fs::{self, ReadDir};
 #[derive(Serialize)]
 struct AppState {
     posts: Vec<Post>,
+    collections: Vec<String>,
 }
+
+fn post_maker(directory_entry: ReadDir, posts: &mut Vec<Result<Post, PostError>>) {
+    for directory in directory_entry {
+        let dir_res = directory.unwrap();
+        let path = dir_res.path();
+        if path.is_file() {
+            posts.push(Post::from_file_path(&path))
+        } else {
+            post_maker(fs::read_dir(path.clone()).unwrap(), posts)
+        }
+    }
+}
+
 fn generate_app_state() -> AppState {
     let source_directory = PathBuf::from_str("posts").unwrap();
-    let target_directory = PathBuf::from_str("_site/posts").unwrap();
+    let mut collections: Vec<String> = Vec::new();
     let mut errors: Vec<PostError> = Vec::new();
     let mut posts: Vec<Post> = Vec::new();
     let mut post_results: Vec<Result<Post, PostError>> = Vec::new();
     let directory_entry = fs::read_dir(source_directory).unwrap();
-    for directory in directory_entry {
-        let post_result = Post::from_file_path(&(directory.unwrap().path()));
-        post_results.push(post_result.clone());
-        if let Ok(post) = post_result {
-            let mut target_filename = target_directory.clone();
-            target_filename.push(format!("{}.html", &post.file_name));
-        }
-    }
+    post_maker(directory_entry, &mut post_results);
+
     for post_result in post_results {
         match post_result {
-            Ok(post) => posts.push(post),
+            Ok(post) => {
+                if !collections.contains(&post.collection) {
+                    collections.push(post.collection.clone())
+                }
+
+                posts.push(post);
+            }
             Err(err) => errors.push(err),
         }
     }
@@ -49,7 +62,8 @@ fn generate_app_state() -> AppState {
             println!("{}", error.message)
         }
     }
-    AppState { posts }
+    posts.sort_by_key(|p| p.date);
+    AppState { posts, collections }
 }
 
 #[shuttle_runtime::main]
@@ -63,7 +77,8 @@ async fn actix_web() -> ShuttleActixWeb<impl FnOnce(&mut ServiceConfig) + Send +
                 .wrap(Logger::default())
                 .service(index)
                 .service(blog_post)
-                .service(Files::new("/static", "./static").show_files_listing()),
+                .service(Files::new("/static", "./static").show_files_listing())
+                .service(latest_post),
         );
     };
     Ok(config.into())

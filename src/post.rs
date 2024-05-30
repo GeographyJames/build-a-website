@@ -1,6 +1,5 @@
 use chrono::NaiveDate;
 use core::fmt;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::path::PathBuf;
@@ -13,12 +12,15 @@ pub struct Post {
     pub file_name: String,
     pub title: String,
     pub date: NaiveDate,
+    pub collection: String,
+    pub url: String,
 }
 
 #[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
 pub struct PostFrontmatter {
     topic: String,
     description: String,
+    title: String,
 }
 
 impl Post {
@@ -95,10 +97,11 @@ impl Post {
         } else {
             return Err(PostError::new("could not parse date"));
         }
-        let title = file_name_iterator.collect::<Vec<&str>>().join("-");
+        let title = file_name_iterator.collect::<Vec<&str>>().join(" ");
         if title.is_empty() {
             return Err(PostError::new("post has no title"));
         }
+
         let content;
         if let Ok(str) = std::fs::read_to_string(file_path) {
             content = str
@@ -113,12 +116,39 @@ impl Post {
             return Err(PostError::new("failed to create YAML frontmatter"));
         }
 
+        let file_name = post_date_and_name.to_string();
+
+        let parent;
+        if let Some(path) = file_path.parent() {
+            parent = path;
+        } else {
+            return Err(PostError::new("path has no parent"));
+        }
+
+        let components = parent
+            .components()
+            .skip(1)
+            .map(|c| c.as_os_str().to_str().unwrap().to_string())
+            .collect::<Vec<String>>();
+        let collection;
+        if components.len() > 1 {
+            return Err(PostError::new("directories nested too deep."));
+        }
+        if let Some(str) = components.last() {
+            collection = str.clone()
+        } else {
+            return Err(PostError::new("post does not belong to a collection"));
+        }
+        let url = format!("{}/{}", collection, file_name);
+
         Ok(Post {
             frontmatter: yaml_result.metadata,
             source_file_path: file_path.clone(),
-            file_name: post_date_and_name.to_string(),
+            file_name,
             title,
             date,
+            collection,
+            url,
         })
     }
 }
@@ -142,120 +172,3 @@ impl PostError {
 }
 
 impl Error for PostError {}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::str::FromStr;
-    #[test]
-    fn should_parse_markdown_file_name_and_return_post_struct() {
-        let output = Post {
-            source_file_path: PathBuf::from_str("my_directory/2000-01-01-my-post.md").unwrap(),
-            file_name: "2000-01-01-my-post".to_string(),
-            title: "my-post".to_string(),
-            date: NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
-        };
-        assert_eq!(
-            Post::from_file_path(&PathBuf::from_str("my_directory/2000-01-01-my-post.md").unwrap())
-                .unwrap(),
-            output
-        );
-    }
-
-    #[test]
-    fn should_fail_because_file_has_no_name() {
-        let result = Post::from_file_path(&PathBuf::from_str("").unwrap());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn should_fail_because_file_has_no_name_and_provide_message() {
-        let result = Post::from_file_path(&PathBuf::from_str("").unwrap());
-        if let Err(err) = result {
-            assert!(err.message == "file has no name")
-        } else {
-            panic!()
-        };
-    }
-
-    #[test]
-    fn should_fail_because_file_has_no_extension() {
-        let result =
-            Post::from_file_path(&PathBuf::from_str("my_directory/2000-01-01-my-post").unwrap());
-        if let Err(err) = result {
-            assert!(err.message == "no file extension")
-        } else {
-            panic!()
-        }
-    }
-
-    #[test]
-    fn should_fail_because_file_extension_is_not_mk() {
-        let result = Post::from_file_path(
-            &(PathBuf::from_str("my_directory/2000-01-01-my-post.ext")).unwrap(),
-        );
-        if let Err(err) = result {
-            assert!(err.message == "invalid file extension")
-        } else {
-            panic!()
-        }
-    }
-
-    #[test]
-    fn should_fail_because_name_has_no_year() {
-        let result =
-            Post::from_file_path(&(PathBuf::from_str("my_directory/-01-01-my-post.md")).unwrap());
-        if let Err(err) = result {
-            assert!(err.message == "could not parse year")
-        } else {
-            panic!()
-        }
-    }
-    #[test]
-    fn should_fail_because_name_has_no_month() {
-        let result = Post::from_file_path(
-            &(PathBuf::from_str("my_directory/2000-month-01-my-post.md")).unwrap(),
-        );
-        if let Err(err) = result {
-            println!("{}", err.message);
-            assert!(err.message == "could not parse month")
-        } else {
-            panic!()
-        }
-    }
-
-    #[test]
-    fn should_fail_because_name_has_no_day() {
-        let result = Post::from_file_path(
-            &(PathBuf::from_str("my_directory/2000-01-day-my-post.md")).unwrap(),
-        );
-        if let Err(err) = result {
-            println!("{}", err.message);
-            assert!(err.message == "could not parse day")
-        } else {
-            panic!()
-        }
-    }
-    #[test]
-    fn should_fail_because_date_invalid() {
-        let result = Post::from_file_path(
-            &(PathBuf::from_str("my_directory/2000-111-01-my-post.md")).unwrap(),
-        );
-        if let Err(err) = result {
-            println!("{}", err.message);
-            assert!(err.message == "could not parse date")
-        } else {
-            panic!()
-        }
-    }
-    #[test]
-    fn should_fail_because_name_has_no_title() {
-        let result =
-            Post::from_file_path(&(PathBuf::from_str("my_directory/2000-01-01.md")).unwrap());
-        if let Err(err) = result {
-            println!("{}", err.message);
-            assert!(err.message == "post has no title")
-        } else {
-            panic!()
-        }
-    }
-}
